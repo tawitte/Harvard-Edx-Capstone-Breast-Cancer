@@ -1,0 +1,2169 @@
+---
+title: "Capstone: Breast Cancer Model"
+author: "Taylor Witte"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 60
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+# **Section 1**: Introduction
+
+## **1.1 Project Introduction**
+
+One in eight women in the United States will be diagnosed
+with invasive breast cancer and one in thirty-nine will die.
+Breast cancer tumors are first detected through mammograms
+and then tested with a biopsy. There are two common biopsy,
+fine-need and large core-needle. Biopsy cells are then
+examined through microscopic analysis. Digital analysis and
+machine learning techniques can be used to increase
+diagnostic accuracy of breast mass tumors. The Wisconsin
+Diagnostic Breast Cancer dataset was published to develop
+machine learning algorithms that predict diagnosis as benign
+and malignant. Images of the microscopic analysis of
+fine-needle aspirates were digitally scanned and the
+average, mean and worst values of ten features of cell
+nuclei were computed for each tumor. The data set contains
+569 patients with a 37% rate of malignant samples.
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+###### 1. American Cancer Society. Breast Cancer Facts & Figures 2022-2024.Atlanta: American Cancer Society, Inc. 2022.
+
+###### 2. Wolberg, W H et al. "Machine learning techniques to diagnose breast cancer from image-processed nuclear features of fine needle aspirates." Cancer letters vol. 77,2-3 (1994): 163-71. [doi:10.1016/0304-3835(94)90099-x](doi:10.1016/0304-3835(94)90099-x){.uri}
+
+###### 3. [https://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(diagnostic)](https://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(diagnostic)){.uri}
+
+## 1.2. Project Objective
+
+The objective of this project is to create a machine
+learning that predicts diagnosis of basal cell nuclei from
+fine-needle aspirates of breast mass.
+
+## 1.3. Dataset Overview
+
+The Wisconsin Diagnostic Breast Cancer data set contains 569
+patient breast mass tumors. Thirty-seven percent of the
+breast mass tumors in the dataset are malignant.Fine-needle
+aspirates were digitally analysed for ten nuclear features.
+The average, standard error, and worst values were reported
+for each measurement resulting in 30 variables in addition
+to the patient id and diagnosis. The worst measurement is
+the average of the three values most associated with
+malignant diagnosis.
+
+#### [Measurements]{.underline}
+
+1.  Radius
+
+2.  Texture
+
+3.  Perimeter
+
+4.  Area
+
+5.  Smoothness
+
+6.  Compactness
+
+7.  Concavity
+
+8.  Concave Points
+
+9.  Symmetry
+
+10. Fractal Dimension
+
+## 1.4. Project Methodology
+
+**Step 1: Variable Analysis.** Each variable was explored
+and visualized to gain insights into the difference between
+malignant and benign samples.
+
+**Step 2: Develop Model.** The insights gained for variable
+analysis were used to develop a models to predict diagnosis.
+Variable effects and random forest models were used. RMSE,
+accuracy, specificity, and sensitivity were used to evaluate
+each model.
+
+**Step 3: Evaluate Final Model**. The final model was tested
+on a test set of data.
+
+# Section 2: Method & Analysis
+
+## 2.1 Create Dataset
+
+```{r, results = "hide"}
+## Download and Install Necessary Packages ##
+#install packages if necessary 
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+if(!require(readr)) install.packages("readr", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(gtable)) install.packages("gtable", repos = "http://cran.us.r-project.org")
+if(!require(ggfortify)) install.packages("ggfortify", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(devtools)) install.packages("devtools", repos = "http://cran.us.r-project.org")
+devtools::install_github("ldurazo/kaggler")
+
+#load necessary packages
+library(tidyverse)
+library(caret)
+library(data.table)
+library(tidyr)
+library(readr)
+library(dplyr)
+library(gridExtra)
+library(gtable)
+library(ggfortify)
+library(randomForest)
+library(devtools)
+library(kaggler)
+```
+
+```{r, results= "hide"}
+## Download Data Set ##
+#To download the data from kaggle I used the dev kaggler package
+#authentication of Kaggler library under my account
+  kgl_auth(creds_file = '{"username":"taylorwitte","key":"c146a1e9d933feb48672e8c1e8b8dea2"}') 
+#return a URL to Google Cloud storage that contains the zip file of the breast cancer data set
+  response <- kgl_datasets_download_all(owner_dataset = "uciml/breast-cancer-wisconsin-data") 
+#Downloads Zip file
+  dl <- tempfile()
+  #download.file(response[["url"]], "data.zip", mode="wb", dl) 
+  download.file(response[["url"]], dl)
+#reads CVS file of breast cacner data into tibble
+  raw_data <- read_csv(unzip(dl,"data.csv"))
+```
+
+```{r}
+## Examine Breast Cancer Data Set ##
+
+#Before getting to the data, examine formatting of data set. 
+  names(raw_data) #names of columns in data set 
+  glimpse(raw_data) #quick overview of data set 
+
+#We see a 33rd column that does not contain data. From the attribute information of this data set, there should only be 32 columns so this column should be deleted. 
+  #Create data set without extra column
+  breast_cancer_data <- select(raw_data, -last_col()) 
+  #examine new data set
+  glimpse(breast_cancer_data)
+
+#One variable (concave points) has a space in it so we will replace it with an underscore 
+  colnames(breast_cancer_data) <- c("id", "diagnosis", "radius_mean", "texture_mean", "perimeter_mean", "area_mean", "smoothness_mean", "compactness_mean", "concavity_mean", "concavepoints_mean", "symmetry_mean", "fractal_dimension_mean", "radius_se", "texture_se", "perimeter_se", "area_se", "smoothness_se", "compactness_se", "concavity_se", "concavepoints_se", "symmetry_se", "fractal_dimension_se", "radius_worst", "texture_worst", "perimeter_worst", "area_worst", "smoothness_worst", "compactness_worst", "concavity_worst", "concavepoints_worst", "symmetry_worst", "fractal_dimension_worst")
+
+#To calculate RMSE data, the diagnosis character vector will 
+  #need to be converted to a new column where M = 1 and B = 0
+  breast_cancer_data$diagnosis_n[breast_cancer_data$diagnosis == "M"] <- 1
+  breast_cancer_data$diagnosis_n[breast_cancer_data$diagnosis == "B"] <- 0
+  breast_cancer_data$diagnosis_n <- as.integer(breast_cancer_data$diagnosis_n)  
+  glimpse(breast_cancer_data)
+
+## Split data set into Validation Set and Training Set ##
+
+# Validation set will be 25% of Breast Cancer data
+#set seed will ensure reproducibility of data partition 
+  set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+#Create index to partition data set into training and test set
+  test_index <- createDataPartition(y = breast_cancer_data$diagnosis, times = 1, p = 0.25, list = FALSE)
+#Create training data set 
+  BC_train <- breast_cancer_data[-test_index,]
+#Creat test data set 
+  BC_test <- breast_cancer_data[test_index,]
+
+# Make sure diagnosis is evenly split between training and test set 
+#Since patients are not duplicated, the training and test set will have different patients.
+  n_distinct(breast_cancer_data$id) 
+#percent of malignant samples in test set
+  mean(BC_test$diagnosis_n)
+#percent of malignant samples in train set
+  mean(BC_train$diagnosis_n) 
+
+```
+
+The dataset was split into a training set to develop the
+model and test set for evaluating the final model. The
+percent of malignant samples in the training set is
+equivalent to the test set.
+
+## 2.2: Examine Variables
+
+#### 2.2.1 Radius Measurements
+
+The first set of variables examined will be the radius of
+basal cell nuclei nuclei. The mean, worst, and standard
+error will be examined.
+
+```{r}
+## Radius ##
+#Summary of Radius Mean and Worst Radius for each Sample type 
+  #Summary of Radius Mean for Malignant Samples 
+  M_radius_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(radius_mean, diagnosis) %>% summary()
+  M_radius_mean #print
+  #Summary of Radius Mean for Benign Samples 
+  B_radius_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(radius_mean) %>% summary()
+  B_radius_mean #print
+  #Summary of Worst Radius for Malignant Samples 
+  M_radius_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(radius_worst) %>% summary()
+  M_radius_worst #print
+  #Summary of Worst Radius for Benign Samples 
+  B_radius_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(radius_worst) %>% summary()
+  B_radius_worst #print
+#Create Graphs to represent difference of Radius measurments between malignant and benign samples
+#Create Boxplot of Radius Mean 
+radius_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = radius_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Radius", 
+       y = "Diagnosis", x = "Average Radius")
+#Create Boxplot of Radius Worst
+radius_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = radius_worst)) + 
+  geom_boxplot() + 
+  labs(title = "Worst Radius", 
+       y = "Diagnosis", x = "Worst Radius")
+#Create Boxplot of Standard Error of Radius
+radius_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = radius_se)) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of the Radius", 
+       y = "Diagnosis", x = "Standard Error of Radius")
+#Create Histogram of Radius Mean
+radius_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = radius_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Average Radius", 
+       x = "Average Radius", y = "Number of Samples")
+#Create Histogram of Worst Radius 
+radius_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = radius_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Worst Radius", 
+       x = "Worst Radius", y = "Number of Samples")
+#Create Histogram of Standard Error of Radius 
+radius_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = radius_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Standard Error of the Radius", 
+       x = "Standard Error of Radius", y = "Number of Samples")
+#Print Boxplots and Histograms of Radius Variables 
+grid.arrange(radius_a, radius_b, radius_c, radius_d, radius_e, radius_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Radius of Benign and Malignant Samples")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Radius
+radius <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = radius_mean, y = radius_worst, color = diagnosis, size = radius_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Radius", 
+       x = "Average Radius", y = "Worst Radius")
+```
+
+**Radius Variable Observations**: The separation of the
+interquartile range of the radius measurements between the
+benign and malignant basal cell nuclei samples indicates
+there may be a strong variable in developing a prediction
+model.
+
+#### 2.2.2 Texture Measurements
+
+The second set of variables examined will be the texture of
+the cell nucleus which was measured using the gray scale
+intensities in the component pixels.
+
+```{r}
+#Summary of Average and Worst textures of basal cell nuclei for malignant and benign samples
+  #Summary of Texture Mean for Malignant Samples 
+  M_texture_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(texture_mean) %>% summary()
+  M_texture_mean #print
+  #Summary of Texture Mean for Benign Samples 
+  B_texture_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(texture_mean) %>% summary()
+  B_texture_mean #print
+  #Summary of Texture Worst for Malignant Samples 
+  M_texture_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(texture_worst) %>% summary()
+  M_texture_worst #print
+  #Summary of Texture Mean for Benign Samples 
+  B_texture_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(texture_worst) %>% summary()
+  B_texture_worst #print
+#Graph Mean and Standard Error of texture mean, se, and worst for Benign and Malignant Samples
+#Create Boxplot of Average Texture
+texture_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = texture_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Texture", 
+       y = "Diagnosis", x = "Average Texture")
+#Create Boxplot of Worst Texture
+texture_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = texture_worst)) + 
+  geom_boxplot() + 
+  labs(title = "Worst Texture", 
+       y = "Diagnosis", x = "Worst Texture")
+#Create Boxplot of Standard Error of Texture
+texture_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = texture_se)) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of the Texture", 
+       y = "Diagnosis", x = "Standard Error of Texture")
+#Create Histogram of Average Texture
+texture_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = texture_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Average Texture", 
+       x = "Average Texture", y = "Number of Samples")
+#Create Histogram of Worst Texture
+texture_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = texture_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Worst Texture", 
+       x = "Worst Texture", y = "Number of Samples")
+#Create Histogram of Standard Error of Texture
+texture_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = texture_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Standard Error of the Texture", 
+       x = "Standard Error of Texture", y = "Number of Samples")
+#Print Boxplot and Histogram of Texture Variables 
+grid.arrange(texture_a, texture_b, texture_c, texture_d, texture_e, texture_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Texture of Benign and Malignant Samples")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Texture
+texture <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = texture_mean, y = texture_worst, color = diagnosis, size = texture_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Texture", 
+       x = "Average Texture", y = "Worst Texture")
+```
+
+**Texture Measurement Observations**: The benign and
+malignant samples texture measurements overlap almost
+entirely indicating indicating it may be hard to predict
+with based on these variables. However, mean and worst
+texture of malignant samples on average are larger than
+benign samples.
+
+#### 2.2.3: Perimeter Measurements
+
+The third set of variables examined will be the perimeter of
+the cell nuclei.
+
+```{r}
+#Summary of the Average and Worst Perimeter
+#Summary of Perimeter Mean for Malignant Samples 
+  M_perimeter_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(perimeter_mean) %>% summary()
+  M_perimeter_mean #print
+#Summary of Perimeter Mean for Benign Samples 
+  B_perimeter_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(perimeter_mean) %>% summary()
+  B_perimeter_mean #print
+#Summary of Perimeter Worst for Malignant Samples 
+  M_perimeter_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(perimeter_worst) %>% summary()
+  M_perimeter_worst #print
+#Summary of Perimeter Mean for Benign Samples 
+  B_perimeter_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(perimeter_worst) %>% summary()
+  B_perimeter_worst #print
+#Graph the Average, Standard Deviation and Worst Perimeter
+#Create Boxplot of Average Perimeter
+perimeter_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = perimeter_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Perimeter", 
+       y = "Diagnosis", x = "Average Perimeter")
+#Create Boxplot of Worst Perimeter
+perimeter_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = perimeter_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Perimeter", 
+       y = "Diagnosis", x = "Worst Perimeter")
+#Create Boxplot of Standard Error of Perimeter
+perimeter_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = perimeter_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Perimeter", 
+       y = "Diagnosis", x = "Standard Error of Perimeter")
+#Create Histogram of Average Perimeter
+perimeter_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = perimeter_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Average Perimeter", 
+       x = "Average Perimeter", y = "Number of Samples")
+#Create Histogram of Worst Perimeter
+perimeter_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = perimeter_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Worst Perimeter", 
+       x = "Worst Perimeter", y = "Number of Samples")
+#Create Histogram of Standard Error of Perimeter
+perimeter_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = perimeter_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  geom_histogram(alpha = 0.2, binwidth = 1) + 
+  labs(title = "Standard Error of Perimeter", 
+       x = "Standard Error of Perimeter", y = "Number of Samples")
+#Print Boxplot and Histogram of Perimeter Variables 
+grid.arrange(perimeter_a, perimeter_b, perimeter_c, perimeter_d, perimeter_e, perimeter_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Perimeter of Benign and Malignant Samples")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Perimeter
+perimeter <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = perimeter_mean, y = perimeter_worst, color = diagnosis, size = perimeter_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Perimeter", 
+       x = "Average Perimeter", y = "Worst Perimeter")
+```
+
+**Perimeter Measurements Observation**: The separation of
+the interquartile range of the perimeter measurements
+between the benign and malignant basal cell nuclei samples
+indicates there may be a strong variable in developing a
+prediction model.
+
+#### **2.2.4. Area Measurements**
+
+The fourth set of variables examined will be the area of the
+cell nuclei.
+
+```{r}
+## Area ##
+#Summary of the Average and Worst Area
+  #Summary of Average Area for Malignant Samples 
+  M_area_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(area_mean) %>% summary()
+  M_area_mean #print
+#Summary of Perimeter Mean for Benign Samples 
+  B_area_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(area_mean) %>% summary()
+  B_area_mean #print
+#Summary of Perimeter Worst for Malignant Samples 
+  M_area_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(area_worst) %>% summary()
+  M_area_worst #print
+#Summary of Perimeter Mean for Benign Samples 
+  B_area_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(area_worst) %>% summary()
+  B_area_worst #print
+#Graph the Average, Standard Deviation and Worst Area
+#Create a Boxplot of the Average Area 
+area_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = area_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Area", 
+       y = "Diagnosis", x = "Average Area")
+#Create a Boxplot of the Worst Area 
+area_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = area_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Area", 
+       y = "Diagnosis", x = "Worst Area")
+#Create a Boxplot of the Standard Error Area 
+area_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = area_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Area", 
+       y = "Diagnosis", x = "Standard Error of Area")
+#Create a Histogram of the Average Area
+area_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = area_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2) + 
+  geom_histogram(alpha = 0.2) + 
+  labs(title = "Average Area", 
+       x = "Average Area", y = "Number of Samples")
+#Create a Histogram of the Worst Area
+area_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = area_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2) + 
+  geom_histogram(alpha = 0.2) + 
+  labs(title = "Worst Area", 
+       x = "Wost Area", y = "Number of Samples")
+#Create a Histogram of the Standard Error of Area
+area_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = area_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2) + 
+  geom_histogram(alpha = 0.2) + 
+  labs(title = "Standard Deviation of Area", 
+       x = "Standard Deviation of Area", y = "Number of Samples")
+#Print Boxplot and Histogram of Area Variables 
+grid.arrange(area_a, area_b, area_c, area_d, area_e, area_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Area of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Area
+area <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = area_mean, y = area_worst, color = diagnosis, size = area_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Area", 
+       x = "Average Area", y = "Worst Area")
+```
+
+**Area Measurement Observations**: The separation of the
+interquartile range of the area measurements between the
+benign and malignant basal cell nuclei samples indicates
+there may be a strong variable in developing a prediction
+model.
+
+#### 2.2.5. Smoothness Measurements
+
+The fifth set of variables examined will be the smoothness
+of the cell nuclei which is measured by comparing the
+diameter to the average length of lines surrounding it.
+
+```{r}
+## Smoothness ##
+#Summary of the Average and Worst Smoothness
+#Summary of Average Smoothness for Malignant Samples 
+  M_smoothness_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(smoothness_mean) %>% summary()
+  M_smoothness_mean #print
+#Summary of Average Smoothness for Benign Samples 
+  B_smoothness_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(smoothness_mean) %>% summary()
+  B_smoothness_mean #print
+#Summary of Worst Smoothness for Malignant Samples 
+  M_smoothness_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+    select(smoothness_worst) %>% summary()
+  M_smoothness_worst #print
+#Summary of Worst Smoothness for Benign Samples 
+  B_smoothness_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+    select(smoothness_worst) %>% summary()
+  B_smoothness_worst #print
+#Graph the Average, Standard Deviation and Worst Smoothness
+#Create a Boxplot of the Average Smoothness
+smoothness_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = smoothness_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Smoothness", 
+       y = "Diagnosis", x = "Average Smoothness")
+#Create a Boxplot of the Worst Smoothness
+smoothness_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = smoothness_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Smoothness", 
+       y = "Diagnosis", x = "Worst Smoothness")
+#Create a Boxplot of the Standard Error Smoothness
+smoothness_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = smoothness_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Smoothness", 
+       y = "Diagnosis", x = "Standard Error of Smoothness")
+#Create a Histogram of the Average Smoothness
+smoothness_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = smoothness_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2) + 
+  geom_histogram(alpha = 0.2) + 
+  labs(title = "Average Smoothness", 
+       x = "Average Smoothness", y = "Number of Samples")
+#Create a Histogram of the Worst Smoothness
+smoothness_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = smoothness_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2) + 
+  geom_histogram(alpha = 0.2) + 
+  labs(title = "Worst Smoothness", 
+       x = "Worst Smoothness", y = "Number of Samples")
+#Create a Histogram of the Standard Error of Smoothness
+smoothness_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = smoothness_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2) + 
+  geom_histogram(alpha = 0.2) + 
+  labs(title = "Standard Error of Smoothness", 
+       x = "Standard Error of Smoothness", y = "Number of Samples")
+#Print Boxplot and Histogram of Area Variables 
+grid.arrange(smoothness_a, smoothness_b, smoothness_c, 
+             smoothness_d, smoothness_e, smoothness_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Smoothness of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Area
+smoothness <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = smoothness_mean, y = smoothness_worst, 
+             color = diagnosis, size = smoothness_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Smoothness", 
+       x = "Average Smoothness", y = "Worst Smoothness")
+```
+
+**Smoothness Measurement Observations**:There is a large
+overlap of the average and worst smoothness between
+malignant and benign samples. However malignant samples are
+on average slightly higher than benign samples. This
+measurement may not be a strong predictor of diagnosis.
+
+#### 2.2.6. Compactness Measurements
+
+The sixth variable examined will be the compactness of the
+cell nuclei which is measured by comparing the diameter to
+the average length of lines surrounding it.
+
+```{r}
+## Compactness ##
+#Summary of Compactness Mean for Malignant Samples 
+M_comp_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(compactness_mean) %>% summary()
+M_comp_mean
+#Summary of Compactness Mean for Benign Samples 
+B_comp_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(compactness_mean) %>% summary()
+B_comp_mean
+#Summary of Compactness Worst for Malignant Samples 
+M_comp_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(compactness_worst) %>% summary()
+M_comp_worst
+#Summary of Compactness Mean for Benign Samples 
+B_comp_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(compactness_worst) %>% summary()
+B_comp_worst
+#Graph the Average, Standard Deviation and Worst Compactness
+#Create a Boxplot of the Average Compactness
+compactness_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = compactness_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Compactness", 
+       y = "Diagnosis", x = "Average Compactness")
+#Create a Boxplot of the Worst Compactness
+compactness_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = compactness_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Compactness", 
+       y = "Diagnosis", x = "Worst Compactness")
+#Create a Boxplot of the Standard Error of Compactness
+compactness_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = compactness_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Compactness", 
+       y = "Diagnosis", x = "Standard Error of Compactness")
+#Create a Histogram of the Average Compactness
+compactness_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = compactness_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Average Compactness", 
+       x = "Average Compactness", y = "Count")
+#Create a Histogram of the Worst Compactness
+compactness_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = compactness_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Worst Compactness", 
+       x = "Worst Compactness", y = "Count")
+#Create a Histogram of the Standard Error Compactness
+compactness_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = compactness_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Standard Error of Compactness", 
+       x = "Standard Error of Compactness", y = "Count")
+#Print Boxplot and Histograms of Compactness Variables
+grid.arrange(compactness_a, compactness_b, compactness_c, 
+             compactness_d, compactness_e, compactness_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Compactness of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Compactness
+compactness <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = compactness_mean, y = compactness_worst, 
+             color = diagnosis, size = compactness_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Compactness", 
+       x = "Average Compactness", y = "Worst Compactness")
+```
+
+**Compactness Measurement Observations**: There is overlap
+of average and worst compactness between malignant and
+benign samples. However there is a trend of malignant
+samples being more compact than benign samples.
+
+#### 2.2.7. Concavity Measurements
+
+The seventh set of variable examined will be the concavity
+of the cell nuclei which is measured by comparing the
+diameter to the average length of lines surrounding it.
+
+```{r}
+## Concavity ##
+#Summary of Concavity Mean for Malignant Samples 
+M_concavity_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(concavity_mean) %>% summary()
+M_concavity_mean
+#Summary of Concavity Mean for Benign Samples 
+B_concavity_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(concavity_mean) %>% summary()
+B_concavity_mean
+#Summary of Concavity Worst for Malignant Samples 
+M_concavity_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(concavity_worst) %>% summary()
+M_concavity_worst
+#Summary of Concavity Mean for Benign Samples 
+B_concavity_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(concavity_worst) %>% summary()
+B_concavity_worst
+#Graph the Average, Standard Deviation and Worst Concavity
+#Create a Boxplot of the Average Concavity
+concavity_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = concavity_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Concavity", 
+       y = "Diagnosis", x = "Average Concavity")
+#Create a Boxplot of the Worst Concavity
+concavity_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = concavity_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Concavity", 
+       y = "Diagnosis", x = "Worst Concavity")
+#Create a Boxplot of the Standard Error of Concavity
+concavity_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = concavity_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Concavity", 
+       y = "Diagnosis", x = "Standard Error of Concavity")
+#Create a Histogram of the Average Concavity
+concavity_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = concavity_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Average Concavity", 
+       x = "Average Concavity", y = "Count")
+#Create a Histogram of the Worst Concavity
+concavity_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = concavity_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Worst Concavity", 
+       x = "Worst Concavity", y = "Count")
+#Create a Histogram of the Standard Error of Concavity
+concavity_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = concavity_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Standard Error of Concavity", 
+       x = "Standard Error of Concavity", y = "Count")
+#Print Boxplot and Histograms of Concavity Variables
+grid.arrange(concavity_a, concavity_b, concavity_c, 
+             concavity_d, concavity_e, concavity_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Concavity of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Concavity
+concavity <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = concavity_mean, y = concavity_worst, 
+             color = diagnosis, size = concavity_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Concavity", 
+       x = "Average Concavity", y = "Worst Concavity")
+```
+
+**Concavity Measurement Observations**: There is overlap of
+average and worst concavity between malignant and benign
+samples. However the interquartile ranges do not overlap.
+
+#### 2.2.8. Concave Points Measurements
+
+The eighth set of variable examined will be the concave
+points of the cell nuclei which is measured by comparing the
+diameter to the average length of lines surrounding it.
+
+```{r}
+## Concave Points ##
+#Summary of Concave Points Mean for Malignant Samples 
+M_concp_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(concavepoints_mean) %>% summary()
+M_concp_mean
+#Summary of Concave Points Mean for Benign Samples 
+B_concp_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(concavepoints_mean) %>% summary()
+B_concp_mean
+#Summary of Concave Points Worst for Malignant Samples 
+M_concp_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(concavepoints_worst) %>% summary()
+M_concp_worst
+#Summary of Concave Points Mean for Benign Samples 
+B_concp_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(concavepoints_worst) %>% summary()
+B_concp_worst
+#Graph the Average, Standard Deviation and Worst Concavity
+#Create a Boxplot of the Average Concave Points
+concave_points_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = BC_train$concavepoints_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Concave Points", 
+       y = "Diagnosis", x = "Average Concave Points")
+#Create a Boxplot of the Worst Concave Points
+concave_points_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = BC_train$concavepoints_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Concave Points", 
+       y = "Diagnosis", x = "Worst Concave Points")
+#Create a Boxplot of the Standard Error of Concave Points
+concave_points_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = BC_train$concavepoints_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Concave Points", 
+       y = "Diagnosis", x = "Standard Error of Concave Points")
+#Create a Histogram of the Average Concave Points
+concave_points_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = BC_train$concavepoints_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Average Concave Points", 
+       x = "Average Concave Points", y = "Count")
+#Create a Histogram of the Worst Concave Points
+concave_points_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = BC_train$concavepoints_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Worst Concave Points", 
+       x = "Worst Concave Points", y = "Count")
+#Create a Histogram of the Standard Error of Concave Points
+concave_points_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = BC_train$concavepoints_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Standard Deviation of Concave Points", 
+       x = "Standard Deviation of Concave Points", y = "Count")
+#Print Boxplot and Histograms of Concave Points Variables
+grid.arrange(concave_points_a, concave_points_b, concave_points_c, 
+             concave_points_d, concave_points_e, concave_points_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Concave Points of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Concave Points
+concave_points <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = concavepoints_mean, y = concavepoints_worst, 
+             color = diagnosis, size = concavepoints_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Concave Points", 
+       x = "Average Concave Points", y = "Worst Concave Points")
+```
+
+**Concave Point Measurements Observations**: There is a
+clear separation of the average and worst concave points of
+malignant and benign samples. These variables may be strong
+predictors.
+
+#### 2.2.9. Symmetry Variables
+
+The ninth set of variables examined will be the symmetry of
+the cell nuclei which is measured by comparing the diameter
+to the average length of lines surrounding it.
+
+```{r}
+## Symmetry ##
+#Summary of Mean Symmetry for Malignant Samples 
+M_sym_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(symmetry_mean) %>% summary()
+M_sym_mean
+#Summary of Mean Symmetry for Benign Samples 
+B_sym_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(symmetry_mean) %>% summary()
+B_sym_mean
+#Summary of Worst Symmetry for Malignant Samples 
+M_sym_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(symmetry_worst) %>% summary()
+M_sym_worst
+#Summary of Worst Symmetry for Benign Samples 
+B_sym_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(symmetry_worst) %>% summary()
+B_sym_worst
+#Graph the Average, Standard Deviation and Worst Symmetry
+#Graph Boxplot of the Average Symmetry 
+symmetry_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = symmetry_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Symmetry", 
+       y = "Diagnosis", x = "Average Symmetry")
+#Graph Boxplot of the Worst Symmetry 
+symmetry_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = symmetry_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Symmetry", 
+       y = "Diagnosis", x = "Worst Symmetry")
+#Graph Boxplot of the Standard Error of Symmetry 
+symmetry_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = symmetry_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Symmetry", 
+       y = "Diagnosis", x = "Standard Error of Symmetry")
+#Graph Histogram of the Average Symmetry
+symmetry_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = symmetry_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Average Symmetry", 
+       x = "Average Symmetry", y = "Count")
+#Graph Histogram of the Worst Symmetry
+symmetry_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = symmetry_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Worst Symmetry", 
+       x = "Worst Symmetry", y = "Count")
+#Graph Histogram of the Standard Error of Symmetry
+symmetry_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = symmetry_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Standard Error of Symmetry", 
+       x = "Standard Error of Symmetry", y = "Count")
+#Print Boxplot and Histograms of Symmetry Variables
+grid.arrange(symmetry_a, symmetry_b, symmetry_c, 
+             symmetry_d, symmetry_e, symmetry_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Symmetry of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Symmetry
+symmetry <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = symmetry_mean, y = symmetry_worst, 
+             color = diagnosis, size = symmetry_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Symmetry", 
+       x = "Average Symmetry", y = "Worst Symmetry")
+```
+
+**Symmetry Measurement Observations**: There is a large of
+overlap of symmetry between malignant and benign samples.
+This may not be a strong predictor.
+
+#### 2.2.10. Fractal Dimension Variables
+
+The tenth set of variables examined will be the fractal
+dimension of the cell nuclei which is measured by comparing
+the diameter to the average length of lines surrounding it.
+
+```{r}
+## Fractal Dimension ##
+#Summary of Mean Fractal Dimension for Malignant Samples 
+M_fd_mean <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(fractal_dimension_mean) %>% summary()
+M_fd_mean
+#Summary of Mean Fractal Dimension for Malignant Samples 
+B_fd_mean <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(fractal_dimension_mean) %>% summary()
+B_fd_mean
+#Summary of Worst Fractal Dimension for Malignant Samples 
+M_fd_worst <- BC_train %>% filter(diagnosis_n == 1) %>% 
+  select(fractal_dimension_worst) %>% summary()
+M_fd_worst
+#Summary of Worst Fractal Dimension for Malignant Samples 
+B_fd_worst <- BC_train %>% filter(diagnosis_n == 0) %>% 
+  select(fractal_dimension_worst) %>% summary()
+B_fd_worst
+#Graph the Average, Standard Deviation and Worst Fractal Dimension
+#Graph Boxplot of Average Fractal Dimension 
+fractal_dimension_a <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = fractal_dimension_mean), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Average Fractal Dimension", 
+       y = "Diagnosis", x = "Average Fractal Dimension")
+#Graph Boxplot of Worst Fractal Dimension 
+fractal_dimension_b <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = fractal_dimension_worst), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Worst Fractal Dimension", 
+       y = "Diagnosis", x = "Worst Fractal Dimension")
+#Graph Boxplot of Standard Error of Fractal Dimension 
+fractal_dimension_c <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(y = diagnosis, x = fractal_dimension_se), color = diagnosis) + 
+  geom_boxplot() + 
+  labs(title = "Standard Error of Fractal Dimension", 
+       y = "Diagnosis", x = "Standard Error of Fractal Dimension")
+#Graph Histogram of Average Fractal Dimension 
+fractal_dimension_d <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = fractal_dimension_mean, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Average Fractal Dimension", 
+       x = "Average Fractal Dimension", y = "Count")
+#Graph Histogram of Worst Fractal Dimension 
+fractal_dimension_e <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = fractal_dimension_worst, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Worst Fractal Dimension", 
+       x = "Worst Fractal Dimension", y = "Count")
+#Graph Histogram of Standard Error Fractal Dimension 
+fractal_dimension_f <- BC_train %>% 
+  group_by(diagnosis) %>%
+  ggplot(aes(x = fractal_dimension_se, fill = diagnosis)) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  geom_histogram(alpha = 0.2, bins = 30) + 
+  labs(title = "Standard Deviation of Fractal Dimension", 
+       x = "Standard Deviation of Fractal Dimension", y = "Count")
+#Print Boxplots and Histogram of Fractal Dimension 
+grid.arrange(fractal_dimension_a, fractal_dimension_b, fractal_dimension_c, 
+             fractal_dimension_d, fractal_dimension_e, fractal_dimension_f,
+             ncol = 3, nrow = 2, 
+             top = "Distribution of Fractal Dimension of Benign and Malignant Breast Mass Cell Nuclei")
+#Graph Distribution of Malignant and Benign Samples by Average and Worst Fractal Dimension
+fractal_dimension <- BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = fractal_dimension_mean, y = fractal_dimension_worst, 
+             color = diagnosis, size = fractal_dimension_se)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Fractal Dimension", 
+       x = "Average Fractal Dimension", y = "Worst Fractal Dimension")
+
+```
+
+**Fractal Dimension Measurement Observations:** There is a
+large of overlap of worst and average symmetry between
+malignant and benign samples. This may not be a strong
+predictor of diagnosis.
+
+## 2.11. Variable Overviews and Interactions
+
+Now lets look at overview of all the variables and examine
+their interaction.
+
+```{r}
+#Print Distribution of Malignant and Benign Samples by Average and Worst for each variable 
+grid.arrange(radius, texture, perimeter, area, ncol = 2, nrow = 2, 
+             top = "Overview of Variables of Breast Mass Cell Nuclei 2")
+grid.arrange(smoothness, compactness, concavity, concave_points,
+             ncol = 2, nrow = 2, 
+             top = "Overview of Variables of Breast Mass Cell Nuclei 2")
+grid.arrange(symmetry, fractal_dimension, ncol = 2, nrow = 1, 
+             top = "Overview of Variables of Breast Mass Cell Nuclei 3", 
+             newpage = TRUE)
+## Variable Interaction ##
+#Interaction of Average Radius and Area by Diagnosis 
+BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = perimeter_mean, y = radius_mean, color = diagnosis, size = area_mean)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Average Radius & Perimeter of Breast Mass Cell Nuclei", 
+       x = "Average Radius", y = "Average Area")
+#Interaction of Worst Radius and Area by Diagnosis 
+BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = perimeter_worst, y = radius_worst, color = diagnosis, size = area_worst)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Worst Radius & Perimeter of Breast Mass Cell Nuclei", 
+       x = "Worst Radius", y = "Worst Area")
+#Interaction of Average Concave Points and Fractal Dimension by Diagnosis 
+BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = BC_train$concavepoints_mean, y = fractal_dimension_mean, color = diagnosis, size = concavity_mean)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Average Concave Points and Fractural Dimension of Breast Mass Cell Nuclei", 
+       x = "Average Concave Points", y = "Average Factal Dimension")
+#Interaction of Worst Concave Points and Fractal Dimension by Diagnosis 
+BC_train %>%
+  group_by(diagnosis) %>%
+  ggplot(aes(x = BC_train$concavepoints_worst, y = fractal_dimension_worst, color = diagnosis, size = concavity_worst)) +
+  geom_point(alpha = 0.2) + 
+  labs(title = "Worst Concave Points and Fractural Dimension of Breast Mass Cell Nuclei", 
+       x = "Worst Concave Points", y = "Worst Factal Dimension")
+
+```
+
+**Variable Overviews and Interaction Observation**:
+Perimeter, area and radius separate benign and malignant
+samples.
+
+## 2.12. Principal Component Analysis of Variables
+
+To further examine the interaction of variables, I ran PCA
+with a mix of variable to determine what variables separate
+benign and malignant breast mass cell nuclei.
+
+```{r}
+## PCA of Radius, Area, and Perimeter ##
+mean.pca <- prcomp(BC_train[,c(3,5,6,33)], center = TRUE,scale. = TRUE)
+#mean.pca print pca had been muted
+autoplot(mean.pca, data = BC_train, colour = 'diagnosis') + 
+  labs(title = "PCA of Average Radius, Area and Perimeter")
+
+worst.pca <- prcomp(BC_train[,c(25,26,23,33)], center = TRUE, scale. = TRUE)
+#worst.pca print pca had been muted
+autoplot(worst.pca, data = BC_train, colour = 'diagnosis') + 
+  labs(title = "PCA of Worst Radius, Area and Perimeter")
+
+## PCA of Concave Points, Compactness, Texture, and Fractal Dimension ##
+
+mean2.pca <- prcomp(BC_train[,c(10, 4, 8, 12, 33)], center = TRUE, scale. = TRUE)
+#mean2.pca print pca had been muted
+autoplot(mean2.pca, data = BC_train, colour = 'diagnosis') + 
+  labs(title = "PCA of Average Concave Points, Compactness, Texture, and Fractal Dimension")
+
+worst2.pca <- prcomp(BC_train[,c(28, 30, 25, 32, 33)], center = TRUE, scale. = TRUE)
+#worst2.pca print pca had been muted
+autoplot(mean2.pca, data = BC_train, colour = 'diagnosis') + 
+  labs(title = "PCA of Worst Concave Points, Compactness, Texture, and Fractal Dimension")
+
+## PCA of all variables ##
+
+mean_all.pca <- prcomp(BC_train[,c(3:12, 33)], center = TRUE, scale. = TRUE)
+#mean_all.pca print pca had been muted
+autoplot(mean_all.pca, data = BC_train, colour = 'diagnosis') + 
+  labs(title = "PCA of all Average Variables")
+
+worst_all.pca <- prcomp(BC_train[,c(23:33)], center = TRUE, scale. = TRUE)
+#worst_all.pca print pca had been muted
+autoplot(worst_all.pca, data = BC_train, colour = 'diagnosis') + 
+  labs(title = "PCA of all Average Variables")
+```
+
+**PCA Observations**: Average and worst perimeter, radius,
+and area are very strong indicators of diagnosis. Average
+and worst concave points, compactness, texture and fractal
+dimension are also able to separate benign and malignant
+samples.
+
+# Section 3: Building Model
+
+## 3.1 Evaluation Criteria
+
+Root Mean Squared Error is a loss function that quantifies
+the error predictions which equivalent to accuracy for
+binary outcomes. The goal of the algorithm is to minimize
+the RMSE to as close to 0 as possible. Since this prediction
+is binary, we will evaluate the RMSE and accuracy. The
+criteria of this project is to minimize the RMSE but since
+this is a binary outcome with life threatening effects for
+miss diagnosing breast mass, specificity, sensitivity, and
+accuracy will also be used to evaluate the model. The data
+set contain a low prevalence of malignant samples so
+accuracy and RMSE will over represent predicting benign
+samples. Therefore specificity and sensitivity will also be
+used to evaluate the model. Sensitivity is the ability of
+the program to predict malignant samples as malignant while
+specificity is the ability to predict benign samples as
+benign. The goal of this model will be to minimize RMSE and
+maximizing accuracy, specificity, and sensitivity.
+
+```{r}
+## RMSE Function ##
+#Create RMSE function where: 
+  #P is predictions: the predicted rating of movie i by user u
+  #O is observations: the rating of movie i by user u 
+RMSE <- function(P, O){
+  sqrt(mean((O - P)^2))}
+```
+
+## 3.2 Benchmark Model: Naive Model
+
+The benchmark or naive model is the most basic model for
+predicting diagnosis based on the average diagnosis. This
+model will be used as a baseline to compare further models
+on.
+
+```{r}
+## Benchmarking Model: Naive RMSE ## 
+cancerous_mu <- mean(BC_train$diagnosis_n) #calculate percent of samples that are malignant 
+#Create predictions randomly with based on the probability of being a malignant samples
+bm_y_hat <- sample(c(1, 0), nrow(BC_train), replace = TRUE, 
+                   p = c(cancerous_mu, (1-cancerous_mu)))
+RMSE_naive <- RMSE(bm_y_hat, BC_train$diagnosis_n) #calculate RMSE of benchmark model
+#Calculate a confusion matrix of the benchmark model
+bm_cm <- confusionMatrix(as.factor(bm_y_hat), 
+                         as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create Table of Results from model 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = bm_cm$overall["Accuracy"], Specificity = bm_cm$byClass["Specificity"], Sensitivity = bm_cm$byClass["Sensitivity"])
+results_table
+```
+
+**Benchmark Model Results**: The naive model predicts
+approximately 54% of the samples accurately with a
+sensitivity of 37% and specificity of 63%. As expected this
+model is not very good at predicting diagnosis.
+
+## 3.3: Modeling Variable Effects
+
+To begin building more complex models, I started introducing
+variable effects. Since there are thirty variables, I choose
+to look at only the variables that interquartile ranges do
+not overlap between malignant and benign samples as these
+variables I predict would be better predictors.
+
+**Method:** Since the output is categorical and binary,
+either malignant or benign, to model the variable effects a
+cutoff was chosen between the minimum malignant measuremnt
+and the average malignant measurement. That cutoff was then
+used to predict either malignant (1) or benign (0).
+
+#### 3.3.1 Radius Effect
+
+```{r}
+## Radius Effect ##
+# Average Radius #
+M_radius_mean #print summary of average radius of Malignant samples 
+M_rm_min <- 11.08 #create variable of minimum average radius of malignant samples 
+M_rm_mean <- 17.66 #create variable of average mean radius of malignant samples
+#Create a sequence of variables between the minimum and average
+  rm_cutoff <- seq(M_rm_min, M_rm_mean, by = 0.5)  
+#Predict diagnosis based on radius_mean being larger than a cutoff 
+  #between the minimum and average of malignant samples and calculate the
+  #RMSE for each cutoff
+  rm_rmse <- map_dbl(rm_cutoff, function(x){
+    y_hat <- ifelse(BC_train$radius_mean > x, 1 , 0) 
+    RMSE(y_hat, BC_train$diagnosis_n)
+  })
+#Graph cutoff and rmse from previous predictions 
+  data.frame(rm_cutoff, rm_rmse) %>% 
+    ggplot(aes(rm_cutoff, rm_rmse)) + 
+    geom_point() + 
+    geom_line() +
+    labs(title = "Mean Radius Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+rm_best_rmse <- min(rm_rmse)
+#Find best cutoff that minimizes the RMSE
+rm_best_cutoff <- rm_cutoff[which.min(rm_rmse)]
+rm_best_cutoff #print cutoff
+#Create data frame of predicted diagnosis from each effect 
+predicted_effects <- data_frame("Mean_Radius" = ifelse(BC_train$radius_mean > rm_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Radius Prediction 
+mr_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Radius), 
+                         as.factor(BC_train$diagnosis_n), positive = c("1"))
+
+# Worst Radius #
+M_radius_worst #print summary of worst radius of Malignant samples 
+M_rw_min <- 13.24 #create variable of minimum worst radius of malignant samples 
+M_rw_mean <- 21.32 #create variable of average worst radius of malignant samples
+#Create a sequence of variables between the minimum and average
+rw_cutoff <- seq(M_rw_min, M_rw_mean, by = 0.5)
+#Predict diagnosis based on radius_worst being larger than a cutoff
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+rw_rmse <- map_dbl(rw_cutoff, function(x){
+  y_hat <- ifelse(BC_train$radius_worst > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions 
+data.frame(rw_cutoff, rw_rmse) %>% 
+  ggplot(aes(rw_cutoff, rw_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Worst Radius Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+rw_best_rmse <- min(rw_rmse)
+#Find best cutoff that minimizes the RMSE
+rw_best_cutoff <- rm_cutoff[which.min(rw_rmse)]
+rw_best_cutoff #print cutoff
+#Add predicted diagnosis from worst radius to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Worst_Radius" = ifelse(BC_train$radius_worst > rw_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Worst Radius Prediction 
+wr_cm <- confusionMatrix(as.factor(predicted_effects$Worst_Radius), 
+                         as.factor(BC_train$diagnosis_n))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = bm_cm$overall["Accuracy"], Specificity = bm_cm$byClass["Specificity"], Sensitivity = bm_cm$byClass["Sensitivity"]) %>% add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"])
+results_table #print results table 
+
+```
+
+**Radius Model Results**: The mean radius model predicted
+diagnosis with 89% accuracy, 97% sensitivity and 76%
+specificity which is a large increase compared the naive
+model. The worst radius model had a 85% accuracy, 78%
+sensitivity, and 97% specificity. The worst radius model has
+comparable accuracy to the mean radius model but is much
+better at predicting malignant samples.
+
+#### 3.3.2. Texture Effect
+
+```{r}
+## Texture Effect ##
+# Texture Mean #
+M_texture_mean #print summary of average texture of Malignant samples 
+M_tm_min <- 10.38 #create variable of minimum mean texture of malignant samples 
+M_tm_mean <- 21.61 #create variable of average mean texture of malignant samples
+#Create a sequence of variables between the minimum and average
+tm_cutoff <- seq(M_tm_min, M_tm_mean, by = 0.5)
+#Predict diagnosis based on texture_mean being larger than a cutoff 
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+tm_rmse <- map_dbl(tm_cutoff, function(x){
+  y_hat <- ifelse(BC_train$texture_mean > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions 
+data.frame(tm_cutoff, tm_rmse) %>% 
+  ggplot(aes(tm_cutoff, tm_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Texture Mean Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+tm_best_rmse <- min(tm_rmse)
+#Find best cutoff that minimizes the RMSE
+tm_best_cutoff <- tm_cutoff[which.min(tm_rmse)]
+tm_best_cutoff #print cutoff
+#Add predicted diagnosis from mean texture to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Mean_Texture" = ifelse(BC_train$texture_mean > tm_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Texture Prediction 
+tm_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Texture), as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Texture Model Results:** The mean texture model predicted
+diagnosis with 75% accuracy, 74% sensitivity and 75%
+specificity which is a large increase compared the naive
+model but not nearly as good as the radius effects.
+
+#### 3.3.3. Perimeter Effects
+
+```{r}
+## Perimeter Effect ##
+#Mean Perimeter
+M_perimeter_mean #print summary of average perimeter of Malignant samples
+M_pm_min <- 73.7 #create variable of minimum mean perimeter of malignant samples 
+M_pm_mean <- 116.7 #create variable of average mean perimeter of malignant samples
+#Create a sequence of variables between the minimum and average
+pm_cutoff <- seq(M_pm_min, M_pm_mean, by = 5)
+#Predict diagnosis based on perimeter_mean being larger than a cutoff 
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+pm_rmse <- map_dbl(pm_cutoff, function(x){
+  y_hat <- ifelse(BC_train$perimeter_mean > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions 
+data.frame(pm_cutoff, pm_rmse) %>% 
+  ggplot(aes(pm_cutoff, pm_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Perimeter Mean Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+pm_best_rmse <- min(pm_rmse)
+#Find best cutoff that minimizes the RMSE
+pm_best_cutoff <- pm_cutoff[which.min(pm_rmse)]
+pm_best_cutoff #print cutoff
+#Add predicted diagnosis from mean perimeter to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Mean_Perimeter" = ifelse(BC_train$perimeter_mean > pm_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Perimeter Prediction 
+pm_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Perimeter), 
+                         as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"])
+results_table
+
+#Worst Perimeter
+M_perimeter_worst #print summary of worst perimeter of Malignant samples
+M_pw_min <- 85.1 #create variable of minimum worst perimeter of malignant samples
+M_pw_mean <- 142.7 #create variable of average worst perimeter of malignant samples
+#Create a sequence of variables between the minimum and average
+pw_cutoff <- seq(M_pw_min, M_pw_mean, by = 10)
+#Predict diagnosis based on perimeter_worst being larger than a cutoff between the minimum and average of malignant samples and calculate the RMSE for each cutoff
+pw_rmse <- map_dbl(pw_cutoff, function(x){
+  y_hat <- ifelse(BC_train$perimeter_worst > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions 
+data.frame(pw_cutoff, pw_rmse) %>% 
+  ggplot(aes(pw_cutoff, pw_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Worst Perimeter Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+pw_best_rmse <- min(pw_rmse)
+#Find best cutoff that minimizes the RMSE
+pw_best_cutoff <- pw_cutoff[which.min(pw_rmse)]
+pw_best_cutoff #print cutoff
+#Add predicted diagnosis from worst perimeter to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Worst_Perimeter" = ifelse(BC_train$perimeter_worst > pw_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Worst Perimeter Prediction 
+pw_cm <- confusionMatrix(as.factor(predicted_effects$Worst_Perimeter), 
+                         as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Perimeter Model Results**: The mean perimeter model
+predicted diagnosis with 90% accuracy, 77% sensitivity and
+98% specificity which is the most accurate model so far. The
+worst perimeter model had a 93% accuracy, 82% sensitivity,
+and 99% specificity. The perimeter models are very strong
+and will be useful when combining effects to build the final
+model.
+
+#### 3.3.4. Area Effects
+
+```{r}
+## Area Effect ##
+# Mean Area #
+M_area_mean #print summary of mean area of Malignant samples
+M_am_min <- 361.6 #create variable of minimum mean area of malignant samples
+M_am_mean <- 999.2 #create variable of average mean area of malignant samples
+#Create a sequence of variables between the minimum and average
+am_cutoff <- seq(M_am_min, M_am_mean, by = 50)
+#Predict diagnosis based on area_mean being larger than a cutoff between 
+#the minimum and average of malignant samples and calculate the RMSE for 
+#each cutoff
+am_rmse <- map_dbl(am_cutoff, function(x){
+  y_hat <- ifelse(BC_train$area_mean > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions 
+data.frame(am_cutoff, am_rmse) %>% 
+  ggplot(aes(am_cutoff, am_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Mean Area Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+am_best_rmse <- min(am_rmse)
+#Find best cutoff that minimizes the RMSE
+am_best_cutoff <- am_cutoff[which.min(am_rmse)]
+am_best_cutoff #print cutoff
+#Add predicted diagnosis from mean area to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Mean_Area" = ifelse(BC_train$area_mean > am_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Area Prediction 
+am_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Area), 
+                         as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"])
+results_table #print results table
+
+# Worst Area #
+M_area_worst #print summary of worst area of Malignant samples
+M_aw_min <- 508.1 #create variable of minimum worst area of malignant samples
+M_aw_mean <- 1446.2 #create variable of average worst area of malignant samples
+#Create a sequence of variables between the minimum and average
+aw_cutoff <- seq(M_aw_min, M_aw_mean, by = 50)
+#Predict diagnosis based on area_worst being larger than a cutoff between
+#the minimum and average of malignant samples and calculate the RMSE for 
+#each cutoff
+aw_rmse <- map_dbl(aw_cutoff, function(x){
+  y_hat <- ifelse(BC_train$area_worst > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(aw_cutoff, aw_rmse) %>% 
+  ggplot(aes(aw_cutoff, aw_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Worst Area Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+aw_best_rmse <- min(aw_rmse)
+#Find best cutoff that minimizes the RMSE
+aw_best_cutoff <- aw_cutoff[which.min(aw_rmse)]
+aw_best_cutoff #print cutoff
+#Add predicted diagnosis from worst area to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Worst_Area" = ifelse(BC_train$area_worst > aw_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Worst Area Prediction 
+aw_cm <- confusionMatrix(as.factor(predicted_effects$Worst_Area), 
+                         as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Area Model Results**: The mean area model predicted
+diagnosis with 89% accuracy, 76% sensitivity and 97%
+specificity. The worst area model had a 92% accuracy, 81%
+sensitivity, and 99% specificity. The area models are very
+strong and will be useful when combining effects to build
+the final model.
+
+#### 3.3.5 Compactness Effect
+
+```{r}
+## Compactness Effect ##
+# Mean Compactness #
+M_comp_mean #print summary of mean compactness of Malignant samples
+M_compm_min <- 0.05616 #create variable of minimum mean compactness of malignant samples
+M_compm_mean <- 0.14534 #create variable of average mean compactness of malignant samples
+#Create a sequence of variables between the minimum and average
+compm_cutoff <- seq(M_compm_min, M_compm_mean, by = 0.025)
+#Predict diagnosis based on compactness_mean being larger than a cutoff 
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+compm_rmse <- map_dbl(compm_cutoff, function(x){
+  y_hat <- ifelse(BC_train$compactness_mean > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(compm_cutoff, compm_rmse) %>% 
+  ggplot(aes(compm_cutoff, compm_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Mean Compactness Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+compm_best_rmse <- min(compm_rmse)
+#Find best cutoff that minimizes the RMSE
+compm_best_cutoff <- compm_cutoff[which.min(compm_rmse)]
+compm_best_cutoff #print cutoff
+#Add predicted diagnosis from mean compactness to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Mean_Compactness" = ifelse(BC_train$compactness_mean > compm_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Compactness Prediction 
+compm_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Compactness), 
+                            as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"])
+results_table #print results table
+
+# Worst Compactness #
+M_comp_worst #print summary of worst compactness of Malignant samples
+M_compw_min <- 0.07974 #create variable of minimum worst compactness of malignant samples
+M_compw_mean <- 0.37393 #create variable of average worst compactness of malignant samples
+#Create a sequence of variables between the minimum and average
+compw_cutoff <- seq(M_compw_min, M_compw_mean, by = 0.025)
+#Predict diagnosis based on compactness_worst being larger than a cutoff 
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+compw_rmse <- map_dbl(compw_cutoff, function(x){
+  y_hat <- ifelse(BC_train$compactness_worst > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(compw_cutoff, compw_rmse) %>% 
+  ggplot(aes(compw_cutoff, compw_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Worst Compactness Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+compw_best_rmse <- min(compw_rmse)
+#Find best cutoff that minimizes the RMSE
+compw_best_cutoff <- compw_cutoff[which.min(compw_rmse)]
+compw_best_cutoff #print cutoff
+#Add predicted diagnosis from worst compactness to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Worst_Compactness" = ifelse(BC_train$compactness_worst > compw_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Worst Compactness Prediction 
+compw_cm <- confusionMatrix(as.factor(predicted_effects$Worst_Compactness), 
+                            as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Compactness Model Results**: The mean compactness model
+predicted diagnosis with 79% accuracy, 76% sensitivity and
+81% specificity. The worst compactness model had a 79%
+accuracy, 66% sensitivity, and 88% specificity. The
+compactness models are not nearly as strong as other effects
+but substantially stronger than the naive model.
+
+#### 3.3.6. Concavity Effects
+
+```{r}
+## Concavity Effect ##
+# Mean Concavity  #
+M_concavity_mean #print summary of mean concavity of Malignant samples
+M_conm_min <- 0.02685 #create variable of minimum mean concavity of malignant samples
+M_conm_mean <- 0.16037 #create variable of average mean concavity of malignant samples
+#Create a sequence of variables between the minimum and average
+conm_cutoff <- seq(M_conm_min, M_conm_mean, by = 0.025)
+#Predict diagnosis based on concavity_mean being larger than a cutoff 
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+conm_rmse <- map_dbl(conm_cutoff, function(x){
+  y_hat <- ifelse(BC_train$concavity_mean > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(conm_cutoff, conm_rmse) %>% 
+  ggplot(aes(conm_cutoff, conm_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Mean Concavity Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+conm_best_rmse <- min(conm_rmse)
+#Find best cutoff that minimizes the RMSE
+conm_best_cutoff <- conm_cutoff[which.min(conm_rmse)]
+conm_best_cutoff #print cutoff
+#Add predicted diagnosis from mean concavity to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Mean_Concavity" = ifelse(BC_train$concavity_mean > conm_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Concavity Prediction
+conm_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Concavity), 
+                           as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"])
+results_table #print results table
+
+# Worst Concavity #
+M_concavity_worst #print summary of worst concavity of Malignant samples
+M_conw_min <- 0.0612 #create variable of minimum worst concavity of malignant samples
+M_conw_mean <- 0.4473 #create variable of average worst concavity of malignant samples
+#Create a sequence of variables between the minimum and average
+conw_cutoff <- seq(M_conw_min, M_conw_mean, by = 0.05)
+#Predict diagnosis based on concavity_worst being larger than a cutoff 
+#between the minimum and average of malignant samples and calculate the 
+#RMSE for each cutoff
+conw_rmse <- map_dbl(conw_cutoff, function(x){
+  y_hat <- ifelse(BC_train$concavity_worst > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(conw_cutoff, conw_rmse) %>% 
+  ggplot(aes(conw_cutoff, conw_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Worst Concavity Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+conw_best_rmse <- min(conw_rmse)
+#Find best cutoff that minimizes the RMSE
+conw_best_cutoff <- conw_cutoff[which.min(conw_rmse)]
+conw_best_cutoff #print cutoff
+#Add predicted diagnosis from mean concavity to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Worst_Concavity" = ifelse(BC_train$concavity_worst > conw_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Worst Concavity Prediction
+conw_cm <- confusionMatrix(as.factor(predicted_effects$Worst_Concavity), 
+                           as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concavity Effect", RMSE = conw_best_rmse, Accuracy = conw_cm$overall["Accuracy"], Specificity = conw_cm$byClass["Specificity"], Sensitivity = conw_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Concavity Model Results**: The mean concavity model
+predicted diagnosis with 88% accuracy, 78% sensitivity and
+94% specificity. The worst concavity model had a 84%
+accuracy, 87% sensitivity, and 83% specificity. The
+concavity models is fairly strong and will be useful when
+combining effects to build the final model.
+
+#### 3.3.7. Concave Points
+
+```{r}
+## Concave Points ##
+# Mean Concave Points #
+M_concp_mean #print summary of mean concave points of Malignant samples
+M_concpm_min <- 0.02031 #create variable of minimum mean concave points of malignant samples
+M_concpm_mean <- 0.08824 #create variable of average mean concave points of malignant samples
+#Create a sequence of variables between the minimum and average
+concpm_cutoff <- seq(M_concpm_min, M_concpm_mean, by = 0.005)
+#Predict diagnosis based on concave points_mean being larger than a 
+#cutoff between the minimum and average of malignant samples and 
+#calculate the RMSE for each cutoff
+concpm_rmse <- map_dbl(concpm_cutoff, function(x){
+  y_hat <- ifelse(BC_train$concavepoints_mean > x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(concpm_cutoff, concpm_rmse) %>% 
+  ggplot(aes(concpm_cutoff, concpm_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Mean Concave Points Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+concpm_best_rmse <- min(concpm_rmse)
+#Find best cutoff that minimizes the RMSE
+concpm_best_cutoff <- concpm_cutoff[which.min(concpm_rmse)]
+concpm_best_cutoff #print cutoff
+#Add predicted diagnosis from mean concave points to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Mean_Concave_Points" = ifelse(BC_train$concavepoints_mean > concpm_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Mean Concave Points Prediction
+concpm_cm <- confusionMatrix(as.factor(predicted_effects$Mean_Concave_Points), 
+                             as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concavity Effect", RMSE = conw_best_rmse, Accuracy = conw_cm$overall["Accuracy"], Specificity = conw_cm$byClass["Specificity"], Sensitivity = conw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concave Points Effect", RMSE = concpm_best_rmse, Accuracy = concpm_cm$overall["Accuracy"], Specificity = concpm_cm$byClass["Specificity"], Sensitivity = concpm_cm$byClass["Sensitivity"])
+results_table #print results table
+
+# Worst Concave Points #
+M_concp_worst #print summary of worst concave points of Malignant samples
+M_concpw_min <- 0.0716 #create variable of minimum worst concave points of malignant samples
+M_concpw_mean <- 0.1831 #create variable of average worst concave points of malignant samples
+#Create a sequence of variables between the minimum and average
+concpw_cutoff <- seq(M_concpw_min, M_concpw_mean, by = 0.01)
+#Predict diagnosis based on concave points_worst being larger than a 
+#cutoff between the minimum and average of malignant samples and 
+#calculate the RMSE for each cutoff
+concpw_rmse <- map_dbl(concpw_cutoff, function(x){
+  y_hat <- ifelse(BC_train$concavepoints_worst >= x, 1 , 0) 
+  RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(concpw_cutoff, concpw_rmse) %>% 
+  ggplot(aes(concpw_cutoff, concpw_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Worst Concave Points Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+concpw_best_rmse <- min(concpw_rmse)
+#Find best cutoff that minimizes the RMSE
+concpw_best_cutoff <- concpw_cutoff[which.min(concpw_rmse)]
+concpw_best_cutoff #print cutoff
+#Add predicted diagnosis from worst concave points to predicted_effects data frame
+predicted_effects <- predicted_effects %>% 
+  mutate("Worst_Concave_Points" = ifelse(BC_train$concavepoints_worst >= concpw_best_cutoff, 1, 0))
+#Calculate the confusion matrix for Worst Concave Points Prediction
+concpw_cm <- confusionMatrix(as.factor(predicted_effects$Worst_Concave_Points), 
+                             as.factor(BC_train$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concavity Effect", RMSE = conw_best_rmse, Accuracy = conw_cm$overall["Accuracy"], Specificity = conw_cm$byClass["Specificity"], Sensitivity = conw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concave Points Effect", RMSE = concpm_best_rmse, Accuracy = concpm_cm$overall["Accuracy"], Specificity = concpm_cm$byClass["Specificity"], Sensitivity = concpm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concave Points Effect", RMSE = concpw_best_rmse, Accuracy = concpw_cm$overall["Accuracy"], Specificity = concpw_cm$byClass["Specificity"], Sensitivity = concpw_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Concave Points Model Results**: The mean concave points
+model predicted diagnosis with 92% accuracy, 91% sensitivity
+and 92% specificity. The worst concave points model had a
+91% accuracy, 83% sensitivity, and 97% specificity. The
+concave points models is very strong and will be useful when
+combining effects to build the final model.
+
+#### 3.3.8. Combined Effects
+
+Now that effect of each variable chosen to be modeled has
+been built and evaluated, I am going to combine effects. I
+ranked the results by sensitivity and combined the top 5
+models by summing the malignant predictions and evaluating
+how many predictions of malignant to make a final prediction
+of malignant.
+
+```{r}
+### Combined Effects ##
+results_table[order(-results_table$'Sensitivity'),] #Print results table ordered by sensitivity
+#first let try combining the top five most sensitive models 
+#Create a sequence of predictions from 1 to 5
+combined1_cutoff <- seq(0, 5, 0.5)
+#Predict diagnosis based on how many effects predict diagnosis and calculate rmse
+combined1_rmse <- map_dbl(combined1_cutoff, function(x){
+  sum <- (predicted_effects$Mean_Radius + predicted_effects$Mean_Concave_Points + predicted_effects$Worst_Concavity + predicted_effects$Worst_Concave_Points + predicted_effects$Worst_Perimeter)
+  y_hat <- ifelse(sum > x, 1 , 0) 
+  rmse <- RMSE(y_hat, BC_train$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(combined1_cutoff, combined1_rmse) %>% 
+  ggplot(aes(combined1_cutoff, combined1_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Combined Sum Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+combined1_best_rmse <- min(combined1_rmse)
+#Find best cutoff that minimizes the RMSE
+combined1_best_cutoff <- combined1_cutoff[which.min(combined1_rmse)]
+combined1_best_cutoff #print cutoff
+#Predict diagnosis based on sum of predictions being bigger than a cutoff 
+predicted_effects <- predicted_effects %>% 
+  mutate("Combined_1_Effect" = ifelse((Mean_Radius + Mean_Concave_Points + Worst_Concavity + Worst_Concave_Points + Worst_Perimeter) > combined1_best_cutoff, 1, 0))
+#Calculate the confusion matrix for the combined effects Prediction
+combined1_cm <- confusionMatrix(as.factor(predicted_effects$Combined_1_Effect), 
+                                as.factor(BC_train$diagnosis_n), positive = c("1"))
+#combined1_cm #print confusion matrix has been muted
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concavity Effect", RMSE = conw_best_rmse, Accuracy = conw_cm$overall["Accuracy"], Specificity = conw_cm$byClass["Specificity"], Sensitivity = conw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concave Points Effect", RMSE = concpm_best_rmse, Accuracy = concpm_cm$overall["Accuracy"], Specificity = concpm_cm$byClass["Specificity"], Sensitivity = concpm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concave Points Effect", RMSE = concpw_best_rmse, Accuracy = concpw_cm$overall["Accuracy"], Specificity = concpw_cm$byClass["Specificity"], Sensitivity = concpw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Combined Effect", RMSE = combined1_best_rmse, Accuracy = combined1_cm$overall["Accuracy"], Specificity = combined1_cm$byClass["Specificity"], Sensitivity = combined1_cm$byClass["Sensitivity"])
+results_table #print results tables
+```
+
+**Combined Effects Model Results**: The combined effects
+model is the strongest model so far with 95% accuracy and
+0.23 RMSE. The model also has a good balances of 94%
+specificity and 96% sensitivity.
+
+## 3.4. Random Forest Models
+
+This combined model is very strong but could a stronger
+model be developed. A more advanced machine learning
+algorithm may be able to diagnose samples with more
+accuracy. Random Forest algorithms aim to improve accuracy
+and reduce instability by average multiple decision trees.
+Similar to the combined model, initially many predictors are
+generated and then a final prediction is generated based on
+the average of the predictors. This algorithm will be able
+to integrate all thirty variables with significantly less
+work than the modeling individual effects and combining
+them.
+
+#### 3.4.1. Random Forest Model of All Variables
+
+Initially all variables will be considering in the random
+forest model.
+
+```{r}
+## Prep for Random Forest  Model ##
+  #Set seed so partitioning is reproducible 
+    set.seed(1, sample.kind="Rounding") # if using R 3.5 or earlier, use `set.seed(1)`
+  #Create Partition Index to create a train and test set for the model from the training set 
+    val_index <- createDataPartition(y = BC_train$diagnosis, times = 1, p = 0.5, list = FALSE)
+  #Create random forest training set without patient id and letter diagnosis
+    train_rf <- BC_train[-val_index,3:33]
+  #Create random forest testing set without patient id and letter diagnosis
+    test_rf <- BC_train[val_index,3:33]
+
+# Random Forest Model with All Variables #
+#Build random forest model predicting diagnosis from all variables and 
+    #calculate importance of variables
+rf_fit <- randomForest(diagnosis_n ~., data = train_rf, importance = TRUE)
+#Create a sequence from 0 to 1 with 0 being benign and 1 being malignant by 0.1
+rf_cutoff <- seq(0, 1, by = 0.1)
+#Predict diagnosis from random forest model. Since predictions are on a 
+#scale of 0 and 1, test cutoff point to predict benign or malignant and 
+#calculate corresponding rmse 
+rf_test_rmse <- map_dbl(rf_cutoff, function(x){
+  rf_y_hat <- tibble(y_hat = ifelse(predict(rf_fit, test_rf) > x, 1, 0))
+  rf_rmse <- RMSE(rf_y_hat$y_hat, test_rf$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(rf_cutoff, rf_test_rmse) %>% 
+  ggplot(aes(rf_cutoff, rf_test_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Random Forest Model 1.0 Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+rf_best_rmse <- min(rf_test_rmse)
+#Find best cutoff that minimizes the RMSE
+rf_best_cutoff <- rf_cutoff[which.min(rf_test_rmse)]
+rf_best_cutoff #print cutoff
+#Predict diagnosis from random forest model based on best cutoff
+rf_y_hat <- tibble(y_hat = ifelse(predict(rf_fit, test_rf) > rf_best_cutoff, 1, 0))
+#Calculate the confusion matrix for the random forest model with all variable
+rf_cm <- confusionMatrix(as.factor(rf_y_hat$y_hat), 
+                         as.factor(test_rf$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concavity Effect", RMSE = conw_best_rmse, Accuracy = conw_cm$overall["Accuracy"], Specificity = conw_cm$byClass["Specificity"], Sensitivity = conw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concave Points Effect", RMSE = concpm_best_rmse, Accuracy = concpm_cm$overall["Accuracy"], Specificity = concpm_cm$byClass["Specificity"], Sensitivity = concpm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concave Points Effect", RMSE = concpw_best_rmse, Accuracy = concpw_cm$overall["Accuracy"], Specificity = concpw_cm$byClass["Specificity"], Sensitivity = concpw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Combined 1 Effect", RMSE = combined1_best_rmse, Accuracy = combined1_cm$overall["Accuracy"], Specificity = combined1_cm$byClass["Specificity"], Sensitivity = combined1_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Random Forest Model 1.0", RMSE = rf_best_rmse, Accuracy = rf_cm$overall["Accuracy"], Specificity = rf_cm$byClass["Specificity"], Sensitivity = rf_cm$byClass["Sensitivity"]) 
+results_table #print results tables
+```
+
+**Random Forest Model Results**: The random forest model is
+stronger than the combined effect model with a rmse of 0.155
+and accuracy of 98%. It perfectly predicted benign samples
+but only 94% of malignant samples.
+
+#### 3.4.2 Random Forest Model Variable Importance
+
+To further optimize the the random forest model, I will
+evaluate the importance of variables in the random forest
+model. Two values are reported for variable importance,
+Percent IncMSE and IncNode purity. The percent IncMSE is the
+more robust and information measure where that measures the
+increase in the prediction errors after removing the effect.
+Therefore the least important variables will have the lowest
+IncMSE. The IncNode purity is more biased than IncMSE purity
+and measure the node impurities after removing the effect.
+Since IncNode is more biased than the IncMSE, I will be
+looking at the IncMSE.
+
+```{r}
+#Examine Importance of Variables from Random Forest Model with all variables 
+varImpPlot(rf_fit, sort = TRUE, main = "Varaible Importance in Random Forest Model")
+```
+
+**Random Forest Model Variable Importance Results:** Two
+variables appear to be have below a 0% importance which
+means they may have a negative effect on the model so I will
+create a random forest model excluding those variables.
+
+#### 3.4.3. Optimized Variables of Random Forest Model
+
+In this random forest model, the average symmetry and
+standard error of the symmetry will be excluded as
+predictors.
+
+```{r}
+#Create training an test data sets withot two variables that appear to have a negative impact on the model
+  train_rf2 <- subset(train_rf, select = -c(symmetry_se, symmetry_mean))
+  test_rf2 <- subset(test_rf, select = -c(symmetry_se, symmetry_mean))
+#Build random forest model predicting diagnosis from the rest of the 
+  #variables and calculate importance of variables
+rf2_fit <- randomForest(diagnosis_n ~., data = train_rf2, importance = TRUE)
+#Create a sequence from 0 to 1 with 0 being benign and 1 being malignant by 0.1
+rf2_cutoff <- seq(0, 1, by = 0.1)
+#Predict diagnosis from random forest model. Since predictions are on a 
+#scale of 0 and 1, test cutoff point to predict benign or malignant and 
+#calculate corresponding rmse 
+rf2_test_rmse <- map_dbl(rf2_cutoff, function(x){
+  rf_y_hat <- tibble(y_hat = ifelse(predict(rf2_fit, test_rf2) > x, 1, 0))
+  rf_rmse <- RMSE(rf_y_hat$y_hat, test_rf2$diagnosis_n)
+})
+#Graph cutoff and rmse from previous predictions
+data.frame(rf2_cutoff, rf2_test_rmse) %>% 
+  ggplot(aes(rf2_cutoff, rf2_test_rmse)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "Random Forest Model 2.0 Cutoff", y = "RMSE", x = "Cutoff to Predict Malignant Sample")
+#Find minimum RMSE
+rf2_best_rmse <- min(rf2_test_rmse)
+#Find best cutoff that minimizes the RMSE
+rf2_best_cutoff <- rf2_cutoff[which.min(rf2_test_rmse)]
+rf2_best_cutoff #print cutoff
+#Predict diagnosis from random forest model based on best cutoff
+rf2_y_hat <- tibble(y_hat = ifelse(predict(rf2_fit, test_rf2) > rf2_best_cutoff, 1, 0))
+#Calculate the confusion matrix for the random forest model
+rf2_cm <- confusionMatrix(as.factor(rf2_y_hat$y_hat), 
+                          as.factor(test_rf2$diagnosis_n), positive = c("1"))
+#Create results table for each model with RMSE, Accuracy, Specificity and Sensitivity 
+results_table <- tibble(Model_Type = "Naive", RMSE = RMSE_naive, Accuracy = 0, Specificity = 0, Sensitivity = 0) %>% 
+  add_row(Model_Type = "Mean Radius Effect", RMSE = rm_best_rmse, Accuracy = mr_cm$overall["Accuracy"], Specificity = mr_cm$byClass["Specificity"], Sensitivity = mr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Radius Effect", RMSE = rw_best_rmse, Accuracy = wr_cm$overall["Accuracy"], Specificity = wr_cm$byClass["Specificity"], Sensitivity = wr_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Texture Effect", RMSE = tm_best_rmse, Accuracy = tm_cm$overall["Accuracy"], Specificity = tm_cm$byClass["Specificity"], Sensitivity = tm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Perimeter Effect", RMSE = pm_best_rmse, Accuracy = pm_cm$overall["Accuracy"], Specificity = pm_cm$byClass["Specificity"], Sensitivity = pm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Perimeter Effect", RMSE = pw_best_rmse, Accuracy = pw_cm$overall["Accuracy"], Specificity = pw_cm$byClass["Specificity"], Sensitivity = pw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Area Effect", RMSE = am_best_rmse, Accuracy = am_cm$overall["Accuracy"], Specificity = am_cm$byClass["Specificity"], Sensitivity = am_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Area Effect", RMSE = aw_best_rmse, Accuracy = aw_cm$overall["Accuracy"], Specificity = aw_cm$byClass["Specificity"], Sensitivity = aw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Compactness Effect", RMSE = compm_best_rmse, Accuracy = compm_cm$overall["Accuracy"], Specificity = compm_cm$byClass["Specificity"], Sensitivity = compm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Compactness Effect", RMSE = compw_best_rmse, Accuracy = compw_cm$overall["Accuracy"], Specificity = compw_cm$byClass["Specificity"], Sensitivity = compw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concavity Effect", RMSE = conm_best_rmse, Accuracy = conm_cm$overall["Accuracy"], Specificity = conm_cm$byClass["Specificity"], Sensitivity = conm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concavity Effect", RMSE = conw_best_rmse, Accuracy = conw_cm$overall["Accuracy"], Specificity = conw_cm$byClass["Specificity"], Sensitivity = conw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Mean Concave Points Effect", RMSE = concpm_best_rmse, Accuracy = concpm_cm$overall["Accuracy"], Specificity = concpm_cm$byClass["Specificity"], Sensitivity = concpm_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Worst Concave Points Effect", RMSE = concpw_best_rmse, Accuracy = concpw_cm$overall["Accuracy"], Specificity = concpw_cm$byClass["Specificity"], Sensitivity = concpw_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Combined 1 Effect", RMSE = combined1_best_rmse, Accuracy = combined1_cm$overall["Accuracy"], Specificity = combined1_cm$byClass["Specificity"], Sensitivity = combined1_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Random Forest Model 1.0", RMSE = rf_best_rmse, Accuracy = rf_cm$overall["Accuracy"], Specificity = rf_cm$byClass["Specificity"], Sensitivity = rf_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Random Forest Model 2.0", RMSE = rf2_best_rmse, Accuracy = rf2_cm$overall["Accuracy"], Specificity = rf2_cm$byClass["Specificity"], Sensitivity = rf2_cm$byClass["Sensitivity"])
+results_table #print results table
+```
+
+**Optimized Random Forest Model Results:** The accuracy and
+rmse remained at 97.6% after removing these two variables
+but the sensitivity increased to 95% while the specificity
+decreased to 99%.
+
+#### 3.4.4 Final Model
+
+The optimized random forest model that excluded the average
+and standard error symmetry will be the final model with an
+accuracy of 97.6%.
+
+# Section 4: Test Final Model
+
+#### 4.1 Run Final Model on Test Dataset
+
+```{r}
+#Remove symmetry variables from test dataset 
+  test_set <- subset(BC_test, select = -c(symmetry_se, symmetry_mean))
+#Predict diagnosis from final model on test dataset
+finaltest_y_hat <- tibble(y_hat = ifelse(predict(rf2_fit, test_set) > rf2_best_cutoff, 1, 0))
+#Calculate RMSE of final model on test dataset 
+finaltest_rmse <- RMSE(finaltest_y_hat$y_hat, test_set$diagnosis_n)
+#Calculate Confusion Matrix of final model on test dataset 
+finaltest_cm <- confusionMatrix(as.factor(finaltest_y_hat$y_hat), as.factor(test_set$diagnosis_n), positive = c("1"))
+#Create Results Table of Final Model on training and test dataset 
+final_results_table <- tibble(Model_Type = "Random Forest Training Results", RMSE = rf2_best_rmse, Accuracy = rf2_cm$overall["Accuracy"], Specificity = rf2_cm$byClass["Specificity"], Sensitivity = rf2_cm$byClass["Sensitivity"]) %>%
+  add_row(Model_Type = "Random Forest Test Results", RMSE = finaltest_rmse, Accuracy = finaltest_cm$overall["Accuracy"], Specificity = finaltest_cm$byClass["Specificity"], Sensitivity = finaltest_cm$byClass["Sensitivity"]) 
+final_results_table #print final result table 
+
+```
+
+**Final Model Results:** The final model performed very well
+on the test data set. The final random forest model achieved
+a 0.22 RMSE, 95% accuracy, 94% specificity, and 96%
+sensitivity on the test data set.
+
+# Section 5: Conclusion
+
+This report described a way to build an algorithm to
+diagnose breast mass tumors. Fine-needle aspirate biopsy
+were examined microscopically. Digital analysis then
+calculated ten measurements of basal cell nuclei from
+microscopic analysis. The mean, worst, and standard error
+was reported for each measurement to create this data set.
+The final model used to diagnose malignancy of breast mass
+considered twenty-eight of the thirty variables. The
+standard error and average symmetry was excluded from the
+model. The distribution of the average and standard error
+symmetry of malignant and benign samples completely
+overlapped and introduced error to the model.
+
+Although the model performed well with an accuracy of 95%,
+sensitivity to malignant samples of 96%, and specificity to
+benign samples of 94%, 5% of patients are still being
+incorrectly diagnosed. Future iterations of this model can
+optimize random forest tuning parameters and use a larger
+data set to ensure the model is not being over-fit.
+
+#### 
